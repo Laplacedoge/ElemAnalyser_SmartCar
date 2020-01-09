@@ -33,6 +33,7 @@ class ElemImage:
             del(buf)    # 可能我们的buf会有点儿大(^_^)!!!
 
             # [ElemImage标志头 __header 的各位含义] [0 : 置1时表示传过来的图是RGB图像] [7-1 : 未进行定义]
+            # RGB图像的情况
             if self.__header == 0x01:
                 self.isRGB = True
                 self.isgray = False
@@ -42,6 +43,8 @@ class ElemImage:
                     print('[ElemImage : 读取swp(RGB)图像错误, 数据部分正确大小应是{}而实际读取大小是{}字节]'.
                           format(self.__height * self.__width * 3, len(self.__data)))
                     exit()
+
+            # gray图像
             elif self.__header == 0x02:
                 self.isRGB = False
                 self.isgray = True
@@ -51,12 +54,14 @@ class ElemImage:
                     print('[ElemImage : 读取swp(gray)图像错误, 数据部分正确大小应是{}而实际读取大小是{}字节]'.
                           format(self.__height * self.__width, len(self.__data)))
                     exit()
+
+            # binary图像
             elif self.__header == 0x03:
                 self.isRGB = False
                 self.isgray = False
                 self.isbin = True
 
-                if (len(self.__data) != self.__height * self.__width * 3):
+                if (len(self.__data) != self.__height * self.__width / 8):
                     print('[ElemImage : 读取swp(binary)图像错误, 数据部分正确大小应是{}而实际读取大小是{}字节]'.
                           format(self.__height * self.__width / 8, len(self.__data)))
                     exit()
@@ -70,7 +75,7 @@ class ElemImage:
             elif self.isgray:
                 reshapetuple = [self.__height, self.__width]
             elif self.isbin:
-                pass
+                reshapetuple = [self.__height, int(self.__width / 8)]
             self.__data = np.frombuffer(self.__data, dtype=np.uint8).reshape(reshapetuple)  # __data转换成ndarray
 
     def getdata(self):

@@ -75,7 +75,7 @@ class ElemChannel:
         data = bytes()
 
         while True:
-            time.sleep(1)
+            time.sleep(0.1)
             bufsize = self.channel.in_waiting
             if bufsize != 0:
                 beingzero = 0
@@ -94,11 +94,10 @@ class ElemChannel:
                     elif header == 0x02:
                         datasize = height * width + 3
                     elif header == 0x03:
-                        datasize = height * width / 8 + 3
+                        datasize = int(height * width / 8 + 3)
                     else:
-                        rcvsize = 0
                         print('[ElemChannel : 图传输标志头错误, 未知的图像类型]')
-                        # exit()
+                        exit()
 
                 rcvsize += bufsize
                 # print(bufsize)
@@ -120,6 +119,75 @@ class ElemChannel:
                 self.save2hex(data)
                 lock.release()  # 解锁
                 data = bytes()
+    def ForceListen(self, lock):
+        header      = 0 # 标志头(Flags Header)
+        height      = 0 # 图像高度
+        width       = 0 # 图像宽度
+        stdsize     = 0 # 图像标准尺寸, 根据header的变化而变化(Standerd Image Size)
+        rcvsize     = 0 # 当前已接收数据的字节大小(Received Image Size)
+        grpsize     = 0 # 当前串口缓存区域数据字节大小(Current Data Size in Serial Buffer)
+
+        flg_frsrcv  = 1 # 首次接收图像的第一个分组的标志位, 也可能只有这一个分组(Flag for the First Image Data Group)
+        flg_imgtimer= 0 # 一次图像传输的耗时计时器标志位(Flag for the Whole Image Timer)
+
+        databuf     = bytes() # 数据存储缓存(Buffer for Data)
+
+        vrftime_stt = time.time()
+        vrftime     = 0 # 校验时间, 保存从上一个分组接收结束到下一个分组接收开始的间隔时间(Verify Time)
+        overtime    = 0.3#若单片机发送数据间隔时间(处理时间 + 延时时间)是t, 电脑读取buffer的间隔时间是s, 那么overtime必须在s~t之间
+        #flg_vrftimer= 0 # 校验计时器标志位()[0 : 计时已结束, 准备下一轮计时, 1 : 计时一开始, 准备计时结束]
+
+
+
+        while True:
+            time.sleep(0.1)
+            grpsize = self.channel.in_waiting   # 存储当前串口缓存中的已存在字节大小
+            if grpsize > 0:
+                vrftime = time.time() - vrftime_stt
+                if vrftime > overtime:      # 校验计时时间大于超时时间
+                    print('[已超时 vt = {}]'.format(vrftime))
+                    databuf = bytes()       # 说明数据正常或者是数据异常
+                    rcvsize = 0
+                    flg_frsrcv = 1          # 数据异常则手动将首次接收标志扳回1
+
+                databuf += self.channel.read(grpsize)
+                rcvsize += grpsize
+
+
+                print('[  标志  : {}]'.format('头部分组' if flg_frsrcv == 1 else '普通分组'))
+                print('[当前分组 : {}]'.format(grpsize))
+                print('[已经接收 : {}]'.format(rcvsize))
+                print('[标准接收 : {}]\n'.format(stdsize))
+
+                if flg_frsrcv == 1:
+                    flg_frsrcv = 0
+                    header = databuf[0]
+                    height = databuf[1]
+                    width  = databuf[2]
+
+                    if header == 0x01:
+                        stdsize = 3 * height * width + 3
+                    elif header == 0x02:
+                        stdsize = height * width + 3
+                    elif header == 0x03:
+                        stdsize = int(height * width / 8 + 3)
+                    else:
+                        print('[ElemChannel : 图传输标志头错误, 未知的图像类型]')
+                vrftime_stt = time.time()
+
+            if rcvsize == stdsize and rcvsize >= 0:
+                flg_frsrcv = 1
+                rcvsize = 0
+                lock.acquire()
+                self.save2hex(databuf)
+                lock.release()
+                databuf = bytes()
+
+
+
+
+
+
 
 
 
@@ -135,4 +203,4 @@ class ElemChannel:
 if __name__ == '__main__':
     lock = threading.Lock()
     chal = ElemChannel()
-    chal.listen(lock)
+    chal.ForceListen(lock)

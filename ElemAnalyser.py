@@ -72,11 +72,13 @@ class ElemAnalyser:
         cv2.imshow(winname, self.canvas)
         cv2.waitKey(0)
         cv2.destroyWindow(winname)
+
     def imshow(self):
 
         winname = ''        # 窗口名字
 
-        if(self.__elemimage.isRGB == True):
+        # RGB图像
+        if self.__elemimage.isRGB:
             for row in range(0, self.__height):
                 for col in range(self.__width):
                     color = self.__elemimage.getdata()[row][col]
@@ -87,17 +89,30 @@ class ElemAnalyser:
                                    self.__pixelradius + row * (self.__pixelsize + self.__pixelborder)
                                 ),
                                self.__pixelradius, [int(x) for x in color], -1)
-            winname = 'ElementAnalysis for Smart Car - RGB'
-        elif(self.__elemimage.isgray == True):
+            winname = 'Element Analyser for Smart Car - RGB'
+
+        # gray图像
+        elif self.__elemimage.isgray:
             for row in range(0, self.__height):
-                for col in range(self.__width):
+                for col in range(0, self.__width):
                     color = int(self.__elemimage.getdata()[row][col])
                     cv2.circle(self.canvas,(self.__pixelradius + col * (self.__pixelsize + self.__pixelborder),
                                             self.__pixelradius + row * (self.__pixelsize + self.__pixelborder)),
                                self.__pixelradius, [color, color, color], -1)
-            winname = 'ElementAnalysis for Smart Car - Gray'
+            winname = 'Element Analyser for Smart Car - Gray'
 
-
+        # binary图像
+        elif self.__elemimage.isbin:
+            for row in range(0, self.__height):
+                for col in range(0, self.__width):
+                    # mask = pow(2, (col % 8))    # 大端模式
+                    mask = pow(2, 7 - (col % 8))  # 小端模式
+                    bolck = int(self.__elemimage.getdata()[row][col >> 3])
+                    color = 0 if mask & bolck == 0 else 255
+                    cv2.circle(self.canvas, (self.__pixelradius + col * (self.__pixelsize + self.__pixelborder),
+                                             self.__pixelradius + row * (self.__pixelsize + self.__pixelborder)),
+                               self.__pixelradius, [color, color, color], -1)
+            winname = 'Element Analyser for Smart Car - Binary'
 
         cv2.namedWindow(winname)
         cv2.imshow(winname, self.canvas)
@@ -105,7 +120,7 @@ class ElemAnalyser:
         cv2.destroyWindow(winname)
 
     # 图像刷新显示
-    def imrefresh(self, lock, cycle=1000):
+    def imrefresh(self, lock, cycle=500):
         times = 1
         while True:
             lock.acquire()  # 加锁
@@ -144,7 +159,19 @@ class ElemAnalyser:
                 cv2.waitKey(cycle)
             if self.__elemimage.isbin:
                 winame = 'Element Analyzer for Smart Car - binary'
-                pass
+                for row in range(0, self.__height):
+                    for col in range(0, self.__width):
+                        # mask = pow(2, (col % 8))    # 大端模式
+                        mask = pow(2, 7 - (col % 8))  # 小端模式
+                        bolck = int(self.__elemimage.getdata()[row][col >> 3])
+                        color = 0 if mask & bolck == 0 else 255
+                        cv2.circle(self.canvas, (self.__pixelradius + col * (self.__pixelsize + self.__pixelborder),
+                                                 self.__pixelradius + row * (self.__pixelsize + self.__pixelborder)),
+                                   self.__pixelradius, [color, color, color], -1)
+                cv2.imshow(winame, self.canvas)
+                print('[ElemAnalyser : 图像已刷新 {}]'.format(times))
+                times += 1
+                cv2.waitKey(cycle)
 
     def togray(self):
         self.__elemimage.RGB2gray()
@@ -156,8 +183,8 @@ if __name__ == '__main__':
     ElemImage.ElemImage.RGB2hex(r'C:\Users\Administrator\Desktop\ElemImage_Straight_160x60.png',
                                 r'C:\Users\Administrator\Desktop\ElemImage_Straight_160x60.swp')
     ts = time.time()
-    ea.loadimg(r'C:\Users\Administrator\Desktop\ElemImage_Straight_160x60.swp')
-    ea.togray()
+    ea.loadimg(ElemImage.dftpath)
+    # ea.togray()
     ea.imshow()
     te = time.time()
 
